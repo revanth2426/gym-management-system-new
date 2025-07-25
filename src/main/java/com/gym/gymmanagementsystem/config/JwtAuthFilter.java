@@ -18,8 +18,10 @@ import java.io.IOException;
 @Component // Keep @Component for Spring to scan it
 public class JwtAuthFilter extends OncePerRequestFilter {
 
-    private final AuthService authService; // Make them final
-    private final UserDetailsService userDetailsService; // Make them final
+    private final AuthService authService;
+    // Make them final
+    private final UserDetailsService userDetailsService;
+    // Make them final
 
     // Constructor to inject dependencies
     // Spring will use this constructor when creating the bean via @Bean method in SecurityConfig
@@ -43,10 +45,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         jwt = authHeader.substring(7);
         username = authService.extractUsername(jwt);
-
         if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             UserDetails userDetails = this.userDetailsService.loadUserByUsername(username);
-
             if (authService.validateToken(jwt)) {
                 UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                         userDetails, null, userDetails.getAuthorities());

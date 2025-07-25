@@ -36,10 +36,11 @@ public class User {
     @Column(name = "current_plan_start_date")
     private LocalDate currentPlanStartDate;
 
-    @Column(name = "current_plan_end_date") // Important: Ensure this column exists in DB
+    @Column(name = "current_plan_end_date")
     private LocalDate currentPlanEndDate;
 
     @JsonManagedReference
+    // MODIFIED: 'mappedBy' refers to the 'user' field in the Attendance entity (which now maps to the 'attendance' table)
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private java.util.List<Attendance> attendanceRecords;
 }

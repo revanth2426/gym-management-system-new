@@ -3,6 +3,7 @@ package com.gym.gymmanagementsystem.controller;
 import com.gym.gymmanagementsystem.dto.AttendanceDTO;
 import com.gym.gymmanagementsystem.model.Attendance;
 import com.gym.gymmanagementsystem.service.AttendanceService;
+import com.gym.gymmanagementsystem.service.AttendanceSummaryService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -12,13 +13,14 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 
-import com.gym.gymmanagementsystem.dto.AttendanceResponseDTO; // NEW IMPORT
+import com.gym.gymmanagementsystem.dto.AttendanceResponseDTO;
 
 @RestController
 @RequestMapping("/api/attendance")
@@ -28,16 +30,31 @@ public class AttendanceController {
     @Autowired
     private AttendanceService attendanceService;
 
-    @PostMapping("/checkin")
-    public ResponseEntity<AttendanceResponseDTO> checkInUser(@Valid @RequestBody AttendanceDTO attendanceDTO) {
+    @Autowired
+    private AttendanceSummaryService attendanceSummaryService;
+
+    @PostMapping("/record")
+    public ResponseEntity<AttendanceResponseDTO> recordAttendance(@Valid @RequestBody AttendanceDTO attendanceDTO) {
         try {
             Integer userIdInt = Integer.parseInt(attendanceDTO.getUserId());
-            AttendanceResponseDTO dto = attendanceService.recordAttendance(userIdInt); // Service now returns DTO
-            return new ResponseEntity<>(dto, HttpStatus.CREATED);
+            AttendanceResponseDTO dto = attendanceService.recordOrUpdateAttendance(userIdInt);
+            return new ResponseEntity<>(dto, HttpStatus.OK);
         } catch (NumberFormatException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
         } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
+        }
+    }
+
+    @GetMapping("/status/user/{userId}")
+    public ResponseEntity<AttendanceResponseDTO> getTodayAttendanceStatus(@PathVariable String userId) {
+        try {
+            Integer userIdInt = Integer.parseInt(userId);
+            Optional<AttendanceResponseDTO> status = attendanceService.getAttendanceStatusForToday(userIdInt);
+            return status.map(ResponseEntity::ok)
+                         .orElseGet(() -> ResponseEntity.notFound().build());
+        } catch (NumberFormatException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
         }
     }
 
@@ -59,14 +76,64 @@ public class AttendanceController {
         return ResponseEntity.ok(dailyCounts);
     }
 
-    // MODIFIED: Returns List of AttendanceResponseDTO
     @GetMapping("/all")
     public ResponseEntity<Page<AttendanceResponseDTO>> getAllAttendance(
-            @RequestParam(defaultValue = "0") int page, // Default to page 0
-            @RequestParam(defaultValue = "10") int size) { // Default to 10 records per page
-        // Create a Pageable object for sorting by checkInTime descending (most recent first)
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("checkInTime").descending());
         Page<AttendanceResponseDTO> attendancePage = attendanceService.getAllAttendanceRecords(pageable);
         return ResponseEntity.ok(attendancePage);
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteAttendance(@PathVariable("id") Integer attendanceId) {
+        try {
+            attendanceService.deleteAttendanceRecord(attendanceId);
+            return ResponseEntity.noContent().build();
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+    }
+
+    @PostMapping("/generate-summaries")
+    public ResponseEntity<String> generateSummaries() {
+        try {
+            if (!attendanceSummaryService.hasPendingAttendanceRecordsForSummary()) {
+                return ResponseEntity.ok("No new or modified completed attendance records found to generate summaries.");
+            }
+
+            attendanceSummaryService.generateAttendanceSummaries();
+            return ResponseEntity.ok("Attendance summaries generated/updated successfully!");
+        } catch (Exception e) {
+            System.err.println("Error generating attendance summaries: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                 .body("Failed to generate attendance summaries: " + e.getMessage());
+        }
+    }
+
+    // NEW ENDPOINT: Checkout all active users
+    @PostMapping("/checkout-all")
+    public ResponseEntity<String> checkOutAll() {
+        try {
+            int checkedOutCount = attendanceService.checkOutAllUsers();
+            String message = checkedOutCount > 0
+                             ? String.format("Successfully checked out %d active users.", checkedOutCount)
+                             : "No users found checked in today.";
+
+            // After checking out all users, trigger summary generation if needed
+            // This is crucial to ensure daily_attendance and monthly/yearly summaries reflect these new check-outs.
+            // If you keep the generate-summaries button, you might want to call it here.
+            // If the button is removed, uncomment the autowiring in AttendanceService and call it there.
+            if(checkedOutCount > 0) { // Only generate summaries if actual checkouts happened
+                attendanceSummaryService.generateAttendanceSummaries();
+                message += " Summaries updated.";
+            }
+
+            return ResponseEntity.ok(message);
+        } catch (Exception e) {
+            System.err.println("Error checking out all users: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                 .body("Failed to check out all users: " + e.getMessage());
+        }
     }
 }
