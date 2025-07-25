@@ -1,7 +1,7 @@
 // src/main/java/com/gym/gymmanagementsystem/service/PlanAssignmentService.java
 package com.gym.gymmanagementsystem.service;
 
-import com.gym.gymmanagementsystem.model.PlanAssignment;
+/*import com.gym.gymmanagementsystem.model.PlanAssignment;
 import com.gym.gymmanagementsystem.repository.PlanAssignmentRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -18,4 +18,4 @@ public class PlanAssignmentService {
         }
         planAssignmentRepository.deleteById(assignmentId);
     }
-}
+}*/

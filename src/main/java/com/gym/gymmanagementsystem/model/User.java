@@ -1,4 +1,3 @@
-// src/main/java/com/gym/gymmanagementsystem/model/User.java - COMPLETE FILE
 package com.gym.gymmanagementsystem.model;
 
 import jakarta.persistence.*;
@@ -9,17 +8,6 @@ import com.fasterxml.jackson.annotation.JsonManagedReference;
 @Entity
 @Table(name = "users")
 @Data
-@NamedEntityGraph( // MODIFIED: Remove 'attendanceRecords' from top level
-    name = "User.withAssignmentsAndAttendance",
-    attributeNodes = {
-        @NamedAttributeNode(value = "planAssignments", subgraph = "planAssignmentsGraph") // Keep this
-        // REMOVED THIS LINE: @NamedAttributeNode("attendanceRecords") // <--- THIS LINE MUST BE REMOVED
-    },
-    subgraphs = {
-        @NamedSubgraph(name = "planAssignmentsGraph", attributeNodes = @NamedAttributeNode("membershipPlan"))
-        // If attendanceRecords had a subgraph, remove it here too
-    }
-)
 public class User {
 
     @Id
@@ -42,11 +30,16 @@ public class User {
     @Column(name = "joining_date", nullable = false)
     private LocalDate joiningDate;
 
-    @JsonManagedReference
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY) // Keep LAZY here
-    private java.util.List<PlanAssignment> planAssignments;
+    @Column(name = "current_plan_id")
+    private Integer currentPlanId;
+
+    @Column(name = "current_plan_start_date")
+    private LocalDate currentPlanStartDate;
+
+    @Column(name = "current_plan_end_date") // Important: Ensure this column exists in DB
+    private LocalDate currentPlanEndDate;
 
     @JsonManagedReference
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY) // Keep LAZY here
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private java.util.List<Attendance> attendanceRecords;
 }

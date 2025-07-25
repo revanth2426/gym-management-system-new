@@ -3,7 +3,7 @@ package com.gym.gymmanagementsystem.dto;
 import lombok.Data;
 import java.time.LocalDate;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull; // Import NotNull
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PastOrPresent;
 import jakarta.validation.constraints.Pattern;
 
@@ -24,13 +24,19 @@ public class UserDTO {
     @Pattern(regexp = "^\\d{10}$", message = "Contact number must be 10 digits")
     private String contactNumber;
 
-    private String membershipStatus;
+    private String membershipStatus; // Frontend sends this, but backend often derives
 
     @PastOrPresent(message = "Joining date cannot be in the future")
-    @NotNull(message = "Joining date is required") // Made joining date required
+    @NotNull(message = "Joining date is required")
     private LocalDate joiningDate;
 
-    // NEW: Make planId mandatory if a plan must always be assigned on user creation
-    @NotNull(message = "Membership Plan is required")
-    private Integer planId;
+    // FIX: This field *must* allow null if you want to explicitly remove a plan.
+    // The 'required' attribute on the <select> in frontend will still enforce selection for ADD/EDIT from form.
+    // But when sending null via 'X' button, this must be nullable.
+    // REMOVED @NotNull
+    private Integer selectedPlanId;
+
+    // No need to send these from frontend, backend calculates them based on selectedPlanId
+    // private LocalDate selectedPlanStartDate;
+    // private LocalDate selectedPlanEndDate;
 }

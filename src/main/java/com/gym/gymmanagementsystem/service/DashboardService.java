@@ -1,9 +1,8 @@
 package com.gym.gymmanagementsystem.service;
 
-import com.gym.gymmanagementsystem.model.PlanAssignment;
+import com.gym.gymmanagementsystem.model.MembershipPlan;
 import com.gym.gymmanagementsystem.model.User;
 import com.gym.gymmanagementsystem.repository.MembershipPlanRepository;
-import com.gym.gymmanagementsystem.repository.PlanAssignmentRepository;
 import com.gym.gymmanagementsystem.repository.TrainerRepository;
 import com.gym.gymmanagementsystem.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,7 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import com.gym.gymmanagementsystem.dto.ExpiringMembershipDTO; // New import
+import com.gym.gymmanagementsystem.dto.ExpiringMembershipDTO;
 
 @Service
 public class DashboardService {
@@ -29,32 +28,41 @@ public class DashboardService {
     private MembershipPlanRepository membershipPlanRepository;
 
     @Autowired
-    private PlanAssignmentRepository planAssignmentRepository;
-
-    @Autowired
     private AttendanceService attendanceService;
 
     public long getTotalActiveMembers() {
         return userRepository.findAll().stream()
-                .filter(user -> "Active".equalsIgnoreCase(user.getMembershipStatus()))
+                .filter(user -> "Active".equalsIgnoreCase(user.getMembershipStatus()) ||
+                                (user.getCurrentPlanEndDate() != null && user.getCurrentPlanEndDate().isAfter(LocalDate.now())))
                 .count();
     }
 
     public List<ExpiringMembershipDTO> getMembershipsExpiringSoon(int days) {
         LocalDate today = LocalDate.now();
         LocalDate cutoffDate = today.plusDays(days);
-        List<PlanAssignment> expiringAssignments = planAssignmentRepository.findByEndDateBetween(today, cutoffDate);
 
-        return expiringAssignments.stream().map(assignment -> {
-            ExpiringMembershipDTO dto = new ExpiringMembershipDTO();
-            dto.setAssignmentId(assignment.getAssignmentId());
-            dto.setUserName(assignment.getUser() != null ? assignment.getUser().getName() : "N/A");
-            dto.setPlanName(assignment.getMembershipPlan() != null ? assignment.getMembershipPlan().getPlanName() : "N/A");
-            dto.setEndDate(assignment.getEndDate());
-            dto.setUserId(assignment.getUser() != null ? String.valueOf(assignment.getUser().getUserId()) : null);
-            dto.setPlanId(assignment.getMembershipPlan() != null ? assignment.getMembershipPlan().getPlanId() : null);
-            return dto;
-        }).collect(Collectors.toList());
+        // Filter users based on their current plan's end date
+        return userRepository.findAll().stream()
+                .filter(user -> user.getCurrentPlanId() != null && // Must have a plan
+                                user.getCurrentPlanEndDate() != null &&
+                                !user.getCurrentPlanEndDate().isBefore(today) && // End date is today or in future
+                                !user.getCurrentPlanEndDate().isAfter(cutoffDate)) // End date is within the cutoff period
+                .map(user -> {
+                    ExpiringMembershipDTO dto = new ExpiringMembershipDTO();
+                    dto.setUserId(String.valueOf(user.getUserId()));
+                    dto.setUserName(user.getName());
+                    dto.setPlanId(user.getCurrentPlanId());
+                    dto.setEndDate(user.getCurrentPlanEndDate());
+
+                    if (user.getCurrentPlanId() != null) {
+                        membershipPlanRepository.findById(user.getCurrentPlanId()).ifPresent(plan -> {
+                            dto.setPlanName(plan.getPlanName());
+                        });
+                    } else {
+                        dto.setPlanName("N/A");
+                    }
+                    return dto;
+                }).collect(Collectors.toList());
     }
 
     public long getTotalTrainers() {
@@ -62,13 +70,17 @@ public class DashboardService {
     }
 
     public Map<String, Long> getPlanDistribution() {
-        List<PlanAssignment> activeAssignments = planAssignmentRepository.findAll().stream()
-                .filter(assignment -> !assignment.getEndDate().isBefore(LocalDate.now())) // Only count active/future plans
-                .collect(Collectors.toList());
-
-        return activeAssignments.stream()
+        // Collect active plans from users
+        return userRepository.findAll().stream()
+                .filter(user -> user.getCurrentPlanId() != null &&
+                                user.getCurrentPlanStartDate() != null &&
+                                user.getCurrentPlanEndDate() != null &&
+                                user.getCurrentPlanEndDate().isAfter(LocalDate.now())) // Only count truly active plans
                 .collect(Collectors.groupingBy(
-                        assignment -> assignment.getMembershipPlan().getPlanName(),
+                        user -> {
+                            MembershipPlan plan = membershipPlanRepository.findById(user.getCurrentPlanId()).orElse(null);
+                            return plan != null ? plan.getPlanName() : "Unknown Plan";
+                        },
                         Collectors.counting()
                 ));
     }
@@ -78,14 +90,10 @@ public class DashboardService {
     }
 
     public List<User> searchUsers(String query) {
-        // MODIFIED: Handle Integer userId for search
         try {
-            // Attempt to parse the query as an Integer for an exact ID match
             Integer userId = Integer.parseInt(query);
-            // If parsing succeeds, find by ID. findById returns Optional, map it to a List.
             return userRepository.findById(userId).map(List::of).orElse(List.of());
         } catch (NumberFormatException e) {
-            // If the query is not a valid number, fall back to searching by name (case-insensitive)
             return userRepository.findAll().stream()
                     .filter(user -> user.getName().toLowerCase().contains(query.toLowerCase()))
                     .collect(Collectors.toList());

@@ -1,9 +1,7 @@
-// src/main/java/com/gym/gymmanagementsystem/dto/UserResponseDTO.java - COMPLETE FILE
 package com.gym.gymmanagementsystem.dto;
 
 import lombok.Data;
 import java.time.LocalDate;
-import java.util.List; // NEW IMPORT for the list of plans
 
 @Data
 public class UserResponseDTO {
@@ -14,7 +12,11 @@ public class UserResponseDTO {
     private String contactNumber;
     private String membershipStatus;
     private LocalDate joiningDate;
-    // OLD: private String currentPlanName; // This is removed
-    // NEW:
-    private List<PlanAssignmentDetailDTO> assignedPlans; // List of all plans (active/inactive/expired)
+
+    // Fields for current plan details
+    private Integer currentPlanId;
+    private String currentPlanName;
+    private LocalDate currentPlanStartDate;
+    private LocalDate currentPlanEndDate; // This is the calculated expiry date
+    private boolean currentPlanIsActive; // This determines green/red status for the plan pill
 }

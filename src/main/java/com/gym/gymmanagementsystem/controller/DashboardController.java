@@ -55,6 +55,7 @@ public class DashboardController {
 
     @GetMapping("/users/search")
     public ResponseEntity<List<User>> searchUsers(@RequestParam String query) {
+        // This search will now fetch Users without planAssignments directly
         List<User> users = dashboardService.searchUsers(query);
         return ResponseEntity.ok(users);
     }

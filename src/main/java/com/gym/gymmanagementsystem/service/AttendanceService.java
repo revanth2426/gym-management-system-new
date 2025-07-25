@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import com.gym.gymmanagementsystem.dto.AttendanceResponseDTO; // NEW IMPORT
+import com.gym.gymmanagementsystem.dto.AttendanceResponseDTO;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -24,30 +24,31 @@ public class AttendanceService {
     private AttendanceRepository attendanceRepository;
 
     @Autowired
-    private UserRepository userRepository; 
+    private UserRepository userRepository;
 
     public AttendanceResponseDTO recordAttendance(Integer userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found with id: " + userId));
 
+        // Optional: Check if user has an active plan before allowing check-in, if desired
+        // if (user.getCurrentPlanEndDate() == null || user.getCurrentPlanEndDate().isBefore(LocalDate.now())) {
+        //     throw new RuntimeException("User does not have an active plan for check-in.");
+        // }
+
         Attendance attendance = new Attendance();
         attendance.setUser(user);
         attendance.setCheckInTime(LocalDateTime.now());
-        Attendance savedAttendance = attendanceRepository.save(attendance); // Save the entity
+        Attendance savedAttendance = attendanceRepository.save(attendance);
 
-        // Map saved entity to DTO for response
         AttendanceResponseDTO dto = new AttendanceResponseDTO();
         dto.setAttendanceId(savedAttendance.getAttendanceId());
-        dto.setUserId(savedAttendance.getUser().getUserId()); // Get userId from the attached User object
-        dto.setUserName(savedAttendance.getUser().getName()); // Get userName from the attached User object
+        dto.setUserId(savedAttendance.getUser().getUserId());
+        dto.setUserName(savedAttendance.getUser().getName());
         dto.setCheckInTime(savedAttendance.getCheckInTime());
         return dto;
     }
 
-    public List<Attendance> getAttendanceByUserId(String userId) { // This method needs to be handled carefully if userId changes type
-         // If this method is called from somewhere expecting String userId,
-         // it should be adapted to parse to Integer, or this method might become obsolete if client only sends Integer IDs.
-         // For now, let's assume it gets called with string and tries to parse.
+    public List<Attendance> getAttendanceByUserId(String userId) {
          try {
             Integer intUserId = Integer.parseInt(userId);
             User user = userRepository.findById(intUserId)
@@ -59,7 +60,7 @@ public class AttendanceService {
     }
 
     public Map<LocalDate, Long> getDailyAttendanceCount(LocalDate startDate, LocalDate endDate) {
-        List<Attendance> attendanceList = attendanceRepository.findAll(); // This findAll will now eager fetch user
+        List<Attendance> attendanceList = attendanceRepository.findAll();
 
         return attendanceList.stream()
                 .filter(a -> !a.getCheckInTime().toLocalDate().isBefore(startDate) &&
@@ -73,13 +74,13 @@ public class AttendanceService {
     public Page<AttendanceResponseDTO> getAllAttendanceRecords(Pageable pageable) {
         Page<Attendance> attendancePage = attendanceRepository.findAll(pageable);
 
-        return attendancePage.map(attendance -> { // Use .map for Page objects
+        return attendancePage.map(attendance -> {
             AttendanceResponseDTO dto = new AttendanceResponseDTO();
             dto.setAttendanceId(attendance.getAttendanceId());
             dto.setUserId(attendance.getUser() != null ? attendance.getUser().getUserId() : null);
             dto.setUserName(attendance.getUser() != null ? attendance.getUser().getName() : "N/A");
             dto.setCheckInTime(attendance.getCheckInTime());
             return dto;
-        }); // No .collect(Collectors.toList()) needed for Page.map
+        });
     }
 }

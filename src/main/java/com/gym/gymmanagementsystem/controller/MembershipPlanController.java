@@ -1,9 +1,7 @@
 package com.gym.gymmanagementsystem.controller;
 
 import com.gym.gymmanagementsystem.dto.MembershipPlanDTO;
-//import com.gym.gymmanagementsystem.dto.PlanAssignmentDTO;
 import com.gym.gymmanagementsystem.model.MembershipPlan;
-import com.gym.gymmanagementsystem.model.PlanAssignment;
 import com.gym.gymmanagementsystem.service.MembershipPlanService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,8 +11,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Optional;
-
-//import com.gym.gymmanagementsystem.dto.PlanAssignmentResponseDTO; // New import
 
 @RestController
 @RequestMapping("/api/plans")
@@ -68,29 +64,4 @@ public class MembershipPlanController {
             return ResponseEntity.notFound().build();
         }
     }
-
-    /*@PostMapping("/assign")
-    public ResponseEntity<PlanAssignment> assignPlanToUser(@Valid @RequestBody PlanAssignmentDTO assignmentDTO) {
-        try {
-            PlanAssignment assignment = membershipPlanService.assignPlanToUser(
-                    assignmentDTO.getUserId(),
-                    assignmentDTO.getPlanId(),
-                    assignmentDTO.getStartDate()
-            );
-            return new ResponseEntity<>(assignment, HttpStatus.CREATED);
-        } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
-        }
-    }*/
-
-    // MODIFIED: Returns List of PlanAssignmentResponseDTO
-    /*@GetMapping("/user/{userId}/assignments")
-    public ResponseEntity<List<PlanAssignmentResponseDTO>> getPlanAssignmentsByUserId(@PathVariable String userId) {
-        try {
-            List<PlanAssignmentResponseDTO> assignments = membershipPlanService.getPlanAssignmentsByUserId(userId);
-            return ResponseEntity.ok(assignments);
-        } catch (RuntimeException e) {
-            return ResponseEntity.notFound().build();
-        }
-    }*/
 }
