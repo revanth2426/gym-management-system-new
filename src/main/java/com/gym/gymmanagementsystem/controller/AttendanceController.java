@@ -1,6 +1,8 @@
 package com.gym.gymmanagementsystem.controller;
 
 import com.gym.gymmanagementsystem.dto.AttendanceDTO;
+import com.gym.gymmanagementsystem.dto.AttendanceResponseDTO;
+import com.gym.gymmanagementsystem.dto.ErrorResponseDTO; // NEW IMPORT
 import com.gym.gymmanagementsystem.model.Attendance;
 import com.gym.gymmanagementsystem.service.AttendanceService;
 import com.gym.gymmanagementsystem.service.AttendanceSummaryService;
@@ -20,8 +22,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 
-import com.gym.gymmanagementsystem.dto.AttendanceResponseDTO;
-
 @RestController
 @RequestMapping("/api/attendance")
 @CrossOrigin(origins = {"http://localhost:5173", "http://127.0.0.1:5173"})
@@ -34,17 +34,24 @@ public class AttendanceController {
     private AttendanceSummaryService attendanceSummaryService;
 
     @PostMapping("/record")
-    public ResponseEntity<AttendanceResponseDTO> recordAttendance(@Valid @RequestBody AttendanceDTO attendanceDTO) {
+    public ResponseEntity<?> recordAttendance(@Valid @RequestBody AttendanceDTO attendanceDTO) { // CHANGED return type to ResponseEntity<?>
         try {
             Integer userIdInt = Integer.parseInt(attendanceDTO.getUserId());
             AttendanceResponseDTO dto = attendanceService.recordOrUpdateAttendance(userIdInt);
             return new ResponseEntity<>(dto, HttpStatus.OK);
         } catch (NumberFormatException e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                                 .body(new ErrorResponseDTO("Invalid User ID format.", HttpStatus.BAD_REQUEST.value(), System.currentTimeMillis()));
         } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
+            // Return specific message from RuntimeException in a consistent ErrorResponseDTO
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                                 .body(new ErrorResponseDTO(e.getMessage(), HttpStatus.BAD_REQUEST.value(), System.currentTimeMillis()));
         }
     }
+    // ... rest of the controller remains the same ...
+
+    // Re-check other endpoints that return `ResponseEntity<?>` or adjust them similarly for errors if needed.
+    // For now, only the /record endpoint needs this granular error handling via ErrorResponseDTO.
 
     @GetMapping("/status/user/{userId}")
     public ResponseEntity<AttendanceResponseDTO> getTodayAttendanceStatus(@PathVariable String userId) {
@@ -111,7 +118,6 @@ public class AttendanceController {
         }
     }
 
-    // NEW ENDPOINT: Checkout all active users
     @PostMapping("/checkout-all")
     public ResponseEntity<String> checkOutAll() {
         try {
@@ -120,11 +126,7 @@ public class AttendanceController {
                              ? String.format("Successfully checked out %d active users.", checkedOutCount)
                              : "No users found checked in today.";
 
-            // After checking out all users, trigger summary generation if needed
-            // This is crucial to ensure daily_attendance and monthly/yearly summaries reflect these new check-outs.
-            // If you keep the generate-summaries button, you might want to call it here.
-            // If the button is removed, uncomment the autowiring in AttendanceService and call it there.
-            if(checkedOutCount > 0) { // Only generate summaries if actual checkouts happened
+            if(checkedOutCount > 0) {
                 attendanceSummaryService.generateAttendanceSummaries();
                 message += " Summaries updated.";
             }

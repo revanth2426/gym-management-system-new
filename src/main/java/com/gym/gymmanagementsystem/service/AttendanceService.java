@@ -29,10 +29,6 @@ public class AttendanceService {
     @Autowired
     private UserRepository userRepository;
 
-    // @Autowired // REMOVED: AttendanceService no longer triggers summary generation directly
-    // private AttendanceSummaryService attendanceSummaryService;
-
-
     private AttendanceResponseDTO convertToDto(Attendance attendance) {
         AttendanceResponseDTO dto = new AttendanceResponseDTO();
         dto.setAttendanceId(attendance.getAttendanceId());
@@ -55,7 +51,7 @@ public class AttendanceService {
                 .map(this::convertToDto);
     }
 
-    @Transactional // Ensures the check-in/out on the temporary table is atomic
+    @Transactional
     public AttendanceResponseDTO recordOrUpdateAttendance(Integer userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found with id: " + userId));
@@ -73,16 +69,20 @@ public class AttendanceService {
                 if (now.isBefore(attendance.getCheckInTime())) {
                     throw new RuntimeException("Check-out time cannot be before check-in time.");
                 }
+
+                Duration durationSinceCheckIn = Duration.between(attendance.getCheckInTime(), now);
+                if (durationSinceCheckIn.toMinutes() < 10) {
+                    throw new RuntimeException("Check-out not allowed. User must stay at least 10 minutes (current duration: " + durationSinceCheckIn.toMinutes() + " minutes).");
+                }
+
                 attendance.setCheckOutTime(now);
-                Duration duration = Duration.between(attendance.getCheckInTime(), attendance.getCheckInTime()); // Changed to checkInTime
-                attendance.setTimeSpentMinutes(duration.toMinutes()); // Set this to 0 if checkOutTime is same as checkInTime
+                Duration totalDuration = Duration.between(attendance.getCheckInTime(), now);
+                attendance.setTimeSpentMinutes(totalDuration.toMinutes());
 
-                AttendanceResponseDTO responseDto = convertToDto(attendanceRepository.save(attendance));
-
-                return responseDto;
+                return convertToDto(attendanceRepository.save(attendance));
             } else {
-                // User has already checked in AND checked out today
-                throw new RuntimeException("User has already checked in and checked out today.");
+                // MODIFIED ERROR MESSAGE: User has already checked in AND checked out today
+                throw new RuntimeException("User has already checked in and checked out today at " + attendance.getCheckOutTime().toLocalTime() + ".");
             }
         } else {
             // No attendance record for today, so this is a CHECK-IN action
@@ -128,18 +128,28 @@ public class AttendanceService {
         attendanceRepository.deleteById(attendanceId);
     }
 
-    // NEW METHOD: Checkout all users who are currently checked in (check_out_time is NULL)
     @Transactional
     public int checkOutAllUsers() {
         LocalDate today = LocalDate.now();
-        // Find all records for today where check_out_time is NULL
         List<Attendance> activeAttendances = attendanceRepository.findByCheckOutTimeIsNullAndAttendanceDate(today);
 
         int checkedOutCount = 0;
         LocalDateTime now = LocalDateTime.now();
 
         for (Attendance attendance : activeAttendances) {
-            if (attendance.getCheckInTime() != null && now.isAfter(attendance.getCheckInTime())) {
+            if (attendance.getCheckInTime() != null) {
+                Duration durationSinceCheckIn = Duration.between(attendance.getCheckInTime(), now);
+                if (durationSinceCheckIn.toMinutes() < 10) {
+                    System.out.println("Skipping check-out for user " + attendance.getUser().getUserId() +
+                                       " (less than 10 minutes stay: " + durationSinceCheckIn.toMinutes() + " min).");
+                    continue;
+                }
+            } else {
+                System.out.println("Skipping check-out for user " + attendance.getUser().getUserId() + " (missing check-in time).");
+                continue;
+            }
+
+            if (now.isAfter(attendance.getCheckInTime())) {
                 attendance.setCheckOutTime(now);
                 Duration duration = Duration.between(attendance.getCheckInTime(), now);
                 attendance.setTimeSpentMinutes(duration.toMinutes());
@@ -147,11 +157,6 @@ public class AttendanceService {
                 checkedOutCount++;
             }
         }
-        // After processing all check-outs, trigger summary generation
-        // This ensures the persistent daily_attendance table gets updated for these new check-outs
-        // attendanceSummaryService.generateAttendanceSummaries(); // No need to autowire this if you add here
-        // If attendanceSummaryService is intended for manual trigger only, this line is not needed here.
-        // But if you want the "Checkout All" to also update summaries, uncomment and autowire.
         return checkedOutCount;
     }
 }
